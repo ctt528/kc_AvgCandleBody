@@ -1,0 +1,157 @@
+{Just like ATR, but instead of range, is the body's range} 
+//sooner or later we will find a blend of ATR and Candlebody to find what price is likely to do. ....not sure yet, but maybe high atr and low candlebody points to a big candlebody the next day.
+
+//Update Every tick. Daily chart. This way, the last function works well.
+
+{	//gaps		 I ELECT THIS ONE.
+	This method computes ACB from the yesterdays close to todays close. 
+	Thus, accurately representing the legitamate change of price. For example,
+	if the @es opens far lower than it closed at, that drastic change of price 
+	should be considered. This method should be used when addressing how often
+	a change of "consensus price" occurs. 
+	
+	//no gaps
+	This method computes the ACB from a simple approach. It computes the average 
+	candlebody, regardless of gaps. The only calculation done is the difference 
+	between the open and close. Perhaps this method of ACB should be used in a
+	market with an enormous gap, so it won't skew the results.	}
+
+
+
+
+using Elsystem.collections;
+using elsystem.drawingobjects;
+using elsystem;
+
+
+Once Clearprintlog;
+
+inputs:
+	ACBLength(24), //AvgCandleBody
+	ACBShortLength(5),
+	ACBLongLength(84),
+	num(100),
+	PlotLines( true);
+Vars:
+	ACB(0),
+	ACBShortTerm(0),
+	ACBLongTerm(0),
+	
+	CandlebodySD(0),
+	ii(0),
+	iii(0),
+	CandlebodyStandardDev(0),
+	Insideonesd(0),
+	Insidetwosd(0),
+	count(0),
+	
+	HorizontalLine MyHline(null),
+	HorizontalLine MyHhline (null),
+	BNpoint LowSDpoint(null),
+	BNpoint HighSDpoint(null),
+	dtpoint dtPoint1 (null),
+	dtpoint dtPoint2 (null),
+	TextLabel text1 (null),
+	TextLabel text2(null),
+	Highpt(0),
+	Lowpt(0),
+	UniqueID( "+ 1SD"),
+	UniqueIDD( "- 1SD"),
+	CurrentACB(0);
+
+ACB = Average( TruecandlebodyRange, ACBLength ) ;
+ACBShortTerm = Average( TruecandlebodyRange, ACBShortLength ) ;
+ACBLongTerm = Average( TruecandlebodyRange, ACBLongLength ) ;
+CurrentACB = TruecandlebodyRange;
+
+Plot1(ACB, !("ACB"));
+Plot2(ACBShortterm, !("ShortTermACB"));
+Plot8(CurrentACB, !("CurrentACB"));
+//Plot3(ACBlongterm, !("LongtermACB")); 
+//Print(close, "   ", time, "    ", date);
+
+
+//initialize: "the most important step"
+count = 0;
+Insideonesd = 0;
+Insidetwosd = 0;
+CandlebodySD = 0; 
+For ii = 1 to num //not 0 because the current bar has not closed yet, so we shouldn't take its data and treat it like it like the others. 
+Begin
+	CandlebodySD = CandlebodySD + Power((Truecandlebodyrange[ii]-ACB[ii]),2); //seperate logic(that's why it's indented.	
+	If ii = num then CandlebodyStandardDev = Squareroot(CandlebodySD/num);
+	
+	If ii = num then 
+	Begin
+		For iii = 1 to num
+		Begin
+			if truecandlebodyrange[iii] <= ACB[iii]+CandlebodyStandarddev and truecandlebodyrange[iii] >= ACB[iii]-CandlebodyStandarddev then InsideOneSD = InsideOneSD + 1;
+			if truecandlebodyrange[iii] <= ACB[iii]+CandlebodyStandarddev+CandlebodyStandarddev and truecandlebodyrange[iii] >= ACB[iii]-CandlebodyStandarddev-CandlebodyStandarddev then InsidetwoSD = InsidetwoSD + 1;
+			Count = count + 1;
+		If iii = num then print("The last ", count, " bars, ", iff(count<>0, InsideoneSD/count,1)*100, " % of them were within 1SD. ", "And ", iff(count<>0, InsidetwoSD/count,1)*100, " % of them were within 2SD."  ); 
+		End;
+	End;
+end;
+
+
+
+
+Plot4(ACB+CandlebodyStandarddev, !("+1SD"));
+Plot5(ACB-CandlebodyStandarddev, !("-1SD"));
+Plot6(ACB+CandlebodyStandarddev+CandlebodyStandarddev, !("+2SD"));
+Plot7(ACB-CandlebodyStandarddev-CandlebodyStandarddev, !("-2SD"));
+
+
+/////////////////////////////////////////////////////////////////////////////////////////
+//PLOT HORIZONTAL LINE .....say true or false in the inputs!
+
+If plotlines = true then 
+Begin
+
+	Highpt = open[0] + ACB + CandlebodyStandardDev;
+	Lowpt = open[0] - ACB - CandlebodyStandardDev;		
+	If Highpt <> Highpt[1] or Lowpt <> Lowpt[1] Then Condition1 = true else condition1 = false;		
+			
+				
+	If Drawingobjects.items[10].count >= 2 and condition1 = true then
+	Begin
+		Drawingobjects.Delete((DrawingObjects.items[10] astype Vector) [0] astype Drawingobject);
+		Drawingobjects.Delete((DrawingObjects.items[10] astype Vector) [0] astype Drawingobject); //delete both lines
+		
+		Drawingobjects.Delete((DrawingObjects.items[4] astype Vector) [0] astype Drawingobject);
+		Drawingobjects.Delete((DrawingObjects.items[4] astype Vector) [0] astype Drawingobject);//delet both texts
+	End;		
+			
+	If condition1 = true or Drawingobjects.items[10].count = 0 then 
+	begin
+		MyHline = Horizontalline.create(Open + ACB + CandlebodyStandardDev); //Horizontalline 1
+		Drawingobjects.add(MyHline);
+		MyHline.tag = UniqueID astype string;
+		MyHline.color = elsystem.drawing.Color.gray;
+		MyHline.style = styletype.dashed;
+		MyHline.weight = 0;
+		MyHline.Lock = true; 
+		
+		Text1 = TextLabel.Create(dtpoint1.Create(bardatetime[0],Open + ACB + CandlebodyStandardDev),numtostr(iff(count<>0, InsideoneSD/count,1)*100,2)+ !( "%" )); //Text1
+		DrawingObjects.Add(text1); 
+		text1.HStyle = HorizontalStyle.Center;
+		text1.VStyle = VerticalStyle.Center;
+		text1.Font = elsystem.drawing.Font.Create( "Microsoft Sans Serif", 8, 0 );
+		text1.Lock = true;	
+	
+		MyHhline = Horizontalline.create(Open - ACB - CandlebodyStandardDev); // Horizontalline 2
+		Drawingobjects.add(MyHhline);
+		MyHhline.tag = UniqueIDD astype string;
+		MyHhline.color = elsystem.drawing.Color.gray;
+		MyHhline.style = styletype.dashed;
+		MyHhline.weight = 0;
+		MyHhline.Lock = true;
+		
+		Text2 = TextLabel.Create(dtpoint2.Create(bardatetime[0],Open - ACB - CandlebodyStandardDev),numtostr(iff(count<>0, InsideoneSD/count,1)*100,2)+ !( "%" )); //Text2
+		DrawingObjects.Add(Text2); 
+		text2.HStyle = HorizontalStyle.Center;
+		text2.VStyle = VerticalStyle.Center;
+		text2.Font = elsystem.drawing.Font.Create( "Microsoft Sans Serif", 8, 0 );	 
+		text2.Lock = true;
+	End;
+End;
